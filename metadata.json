@@ -1,0 +1,6 @@
+{
+  "name": "Al Hadid Academy",
+  "description": "Islamic & Modern Education System management app for Al Hadid Academy with Hifz, Nazra, Tajweed, Tuition, Books, Attendance, and PDF Fee Receipts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

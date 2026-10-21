@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasUserDoc() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return hasUserDoc() && (getUserData().role in ['admin', 'principal']);
+    }
+
+    function isTeacher() {
+      return hasUserDoc() && getUserData().role == 'teacher';
+    }
+
+    function isParent() {
+      return hasUserDoc() && getUserData().role == 'parent';
+    }
+
+    function isStudent() {
+      return hasUserDoc() && getUserData().role == 'student';
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow get: if isUser(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isUser(userId) &&
+        (!request.resource.data.keys().hasAny(['role']) ||
+         request.resource.data.role == 'pending');
+      allow update: if isAdmin() ||
+        (isUser(userId) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'assignedGroups', 'groups', 'studentIds', 'assignedStudentIds']));
+      allow delete: if isAdmin();
+    }
+
+    // Students collection
+    match /students/{studentId} {
+      allow read: if isAdmin() ||
+        (isTeacher() && (
+          (getUserData().keys().hasAny(['assignedGroups']) && resource.data.department in getUserData().assignedGroups) ||
+          (getUserData().keys().hasAny(['groups']) && resource.data.department in getUserData().groups)
+        )) ||
+        (isParent() && (
+          (getUserData().keys().hasAny(['studentIds']) && studentId in getUserData().studentIds) ||
+          (getUserData().keys().hasAny(['assignedStudentIds']) && studentId in getUserData().assignedStudentIds)
+        )) ||
+        (isStudent() && (
+          (getUserData().keys().hasAny(['studentIds']) && studentId in getUserData().studentIds) ||
+          (getUserData().keys().hasAny(['assignedStudentIds']) && studentId in getUserData().assignedStudentIds)
+        ));
+      allow create, update, delete: if isAdmin() ||
+        (isTeacher() && (
+          (getUserData().keys().hasAny(['assignedGroups']) && resource.data.department in getUserData().assignedGroups) ||
+          (getUserData().keys().hasAny(['groups']) && resource.data.department in getUserData().groups)
+        ));
+    }
+
+    // Attendance collection
+    match /attendance/{attendanceId} {
+      allow read: if isAdmin() || isTeacher() || isParent() || isStudent();
+      allow create, update: if isAdmin() || isTeacher();
+      allow delete: if isAdmin();
+    }
+
+    // Fees and receipts collection
+    match /fees/{feeId} {
+      allow read: if isAdmin() || isTeacher() || isParent() || isStudent();
+      allow create, update, delete: if isAdmin();
+    }
+    match /receipts/{receiptId} {
+      allow read: if isAdmin() || isTeacher() || isParent() || isStudent();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Sabaq, lessons, and quran collections
+    match /sabaq/{sabaqId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isTeacher();
+      allow delete: if isAdmin();
+    }
+    match /lessons/{lessonId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isTeacher();
+      allow delete: if isAdmin();
+    }
+    match /quran/{quranId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isTeacher();
+      allow delete: if isAdmin();
+    }
+
+    // Tests and assessments collection
+    match /tests/{testId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isTeacher();
+      allow delete: if isAdmin();
+    }
+    match /assessments/{assessmentId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isTeacher();
+      allow delete: if isAdmin();
+    }
+
+    // Alerts collection
+    match /alerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Books and monthly reports collections
+    match /books/{bookId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isTeacher();
+    }
+    match /monthly_reports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isTeacher();
+    }
+
+    // Deny anything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
